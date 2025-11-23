@@ -189,8 +189,8 @@
             const initMap = () => {
                 if (!mapContainerRef.current || window.L === undefined) return;
                 
-                // Center map at Ha Tinh (Approx)
-                const map = window.L.map(mapContainerRef.current).setView([18.338, 105.905], 16);
+                // Center map at Ha Tinh (Updated location)
+                const map = window.L.map(mapContainerRef.current).setView([18.336241, 105.902037], 16);
                 
                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
@@ -271,9 +271,12 @@
                 const unsubscribe = onSnapshot(q, (snapshot) => {
                 const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (data.length === 0) {
+                    // Mock Data for initial load
                     setMarkers([
-                    { id: '1', type: 'A', lat: 18.3385, lng: 105.9050, label: 'Trường TH Nam Hà', geometryType: 'point' },
+                    { id: '1', type: 'A', lat: 18.336241, lng: 105.902037, label: 'Trường TH Nam Hà', geometryType: 'point' },
                     { id: '2', type: 'C', lat: 18.3395, lng: 105.9060, label: 'Ngã tư nguy hiểm', geometryType: 'point' },
+                    { id: '3', type: 'D', coordinates: [[18.3382, 105.9048], [18.3382, 105.9052], [18.3388, 105.9052], [18.3388, 105.9048]], label: 'Khu vực an toàn', geometryType: 'polygon' },
+                    { id: '4', type: 'B', coordinates: [[18.3400, 105.9040], [18.3390, 105.9045], [18.3385, 105.9050]], label: 'Đường đi học chính', geometryType: 'polyline' }
                     ]);
                 } else {
                     setMarkers(data);
@@ -458,7 +461,7 @@
                             label: title,
                             type: markerType,
                             geometryType: geometryType,
-                            createdAt: editingId ? undefined : serverTimestamp() 
+                            createdAt: editingId ? undefined : serverTimestamp() // Don't overwrite timestamp on edit
                         };
                         if (geometryType === 'point') {
                             data.lat = parseFloat(lat);
