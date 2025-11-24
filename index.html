@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Văn hóa Giao thông Xanh - Trường tiểu học Nam Hà</title>
+    <title>Văn hóa Giao thông Xanh - Trường Tiểu học Nam Hà</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -51,6 +51,20 @@
         .cursor-crosshair {
             cursor: crosshair !important;
         }
+        
+        /* --- Rich Text Editor & Content Styles --- */
+        .rte-content {
+            white-space: pre-wrap; 
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+        .rte-content h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; }
+        .rte-content h2 { font-size: 1.5em; font-weight: bold; margin: 0.83em 0; }
+        .rte-content p, .rte-content div { margin: 0.5em 0; }
+        .rte-content ul { list-style-type: disc; padding-left: 40px; margin: 1em 0; }
+        .rte-content ol { list-style-type: decimal; padding-left: 40px; margin: 1em 0; }
+        .rte-content blockquote { margin: 1em 40px; padding-left: 10px; border-left: 4px solid #ccc; color: #666; }
+        .rte-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; }
     </style>
 </head>
 <body class="bg-slate-100">
@@ -58,13 +72,14 @@
 
     <!-- Main Application Script -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef } from 'react';
+        import React, { useState, useEffect, useRef, useMemo } from 'react';
         import { createRoot } from 'react-dom/client';
         import { 
           Map, AlertTriangle, FileText, Megaphone, Shield, 
           Award, LogIn, Plus, Trash2, Save, Menu, X, Edit,
           Navigation, Info, User, Layout, MapPin, CheckSquare, XCircle,
-          Eye, EyeOff, MousePointer2
+          Eye, EyeOff, MousePointer2, Undo2, ArrowLeft, Calendar,
+          Bold, Italic, Underline, Image as ImageIcon, Type
         } from 'lucide-react';
         import { initializeApp } from 'firebase/app';
         import { 
@@ -127,7 +142,7 @@
                     </div>
                     <div>
                         <h1 className="font-bold text-lg md:text-xl uppercase leading-tight">Văn hóa Giao thông Xanh</h1>
-                        <p className="text-xs md:text-sm opacity-90">Trường tiểu học Nam Hà - Hà Tĩnh</p>
+                        <p className="text-xs md:text-sm opacity-90">Trường TH Nam Hà - Hà Tĩnh</p>
                     </div>
                     </div>
 
@@ -179,12 +194,70 @@
             );
         };
 
+        // --- Component: Simple Rich Text Editor ---
+        const SimpleRichTextEditor = ({ value, onChange }) => {
+            const editorRef = useRef(null);
+
+            // Đồng bộ giá trị ban đầu
+            useEffect(() => {
+                if (editorRef.current && value !== editorRef.current.innerHTML) {
+                    editorRef.current.innerHTML = value;
+                }
+            }, []);
+
+            // Xử lý lệnh format
+            const execCmd = (command, value = null) => {
+                document.execCommand(command, false, value);
+                editorRef.current.focus();
+            };
+
+            const handleInput = () => {
+                if (editorRef.current) {
+                    onChange(editorRef.current.innerHTML);
+                }
+            };
+
+            return (
+                <div className="border rounded bg-white">
+                    {/* Toolbar */}
+                    <div className="flex flex-wrap gap-2 p-2 border-b bg-gray-50">
+                        <button type="button" onClick={() => execCmd('bold')} className="p-1 hover:bg-gray-200 rounded" title="In đậm"><Bold className="w-4 h-4"/></button>
+                        <button type="button" onClick={() => execCmd('italic')} className="p-1 hover:bg-gray-200 rounded" title="In nghiêng"><Italic className="w-4 h-4"/></button>
+                        <button type="button" onClick={() => execCmd('underline')} className="p-1 hover:bg-gray-200 rounded" title="Gạch chân"><Underline className="w-4 h-4"/></button>
+                        <div className="h-6 w-px bg-gray-300 mx-1"></div>
+                        <select onChange={(e) => execCmd('fontSize', e.target.value)} className="text-xs border rounded p-1" defaultValue="3">
+                            <option value="1">Rất nhỏ</option>
+                            <option value="2">Nhỏ</option>
+                            <option value="3">Bình thường</option>
+                            <option value="4">Lớn</option>
+                            <option value="5">Rất lớn</option>
+                            <option value="6">Tiêu đề</option>
+                        </select>
+                        <select onChange={(e) => execCmd('fontName', e.target.value)} className="text-xs border rounded p-1" defaultValue="Arial">
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Verdana">Verdana</option>
+                        </select>
+                    </div>
+                    {/* Editor Area */}
+                    <div 
+                        ref={editorRef}
+                        contentEditable
+                        className="p-4 min-h-[200px] focus:outline-none rte-content"
+                        onInput={handleInput}
+                        style={{ overflowY: 'auto' }}
+                    ></div>
+                </div>
+            );
+        };
+
         // --- Component: Leaflet Map Integration ---
-        const LeafletMap = ({ markers, activeLayers, onMapClick, selectedCoords }) => {
+        const LeafletMap = ({ markers, activeLayers, onMapClick, drawingData }) => {
             const mapContainerRef = useRef(null);
             const mapInstanceRef = useRef(null);
             const layersRef = useRef([]);
-            const previewMarkerRef = useRef(null);
+            const drawingLayerRef = useRef(null);
 
             useEffect(() => {
                 if (window.L && !mapInstanceRef.current) {
@@ -216,7 +289,6 @@
                     }
                 };
 
-                // Nếu có onMapClick (chế độ Admin), đổi cursor và lắng nghe click
                 if (onMapClick) {
                     map.getContainer().classList.add('cursor-crosshair');
                     map.on('click', clickHandler);
@@ -230,31 +302,44 @@
                 };
             }, [onMapClick]);
 
-            // Hiển thị Marker tạm thời (Preview) khi Admin đang chọn
+            // Hiển thị Hình đang vẽ (Drawing Preview)
             useEffect(() => {
                 if (!mapInstanceRef.current || !window.L) return;
                 const map = mapInstanceRef.current;
 
-                // Xóa marker preview cũ
-                if (previewMarkerRef.current) {
-                    map.removeLayer(previewMarkerRef.current);
-                    previewMarkerRef.current = null;
+                // Xóa layer vẽ cũ
+                if (drawingLayerRef.current) {
+                    drawingLayerRef.current.forEach(l => map.removeLayer(l));
                 }
+                drawingLayerRef.current = [];
 
-                if (selectedCoords && selectedCoords.lat && selectedCoords.lng) {
-                    const customIcon = window.L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div style="background-color: #ec4899; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); animation: bounce 0.5s infinite alternate;"></div>`,
-                        iconSize: [16, 16],
-                        iconAnchor: [8, 8]
+                if (!drawingData) return;
+
+                const { type, points } = drawingData;
+
+                if (points && points.length > 0) {
+                    points.forEach((pt, idx) => {
+                        const dotIcon = window.L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="background-color: #ec4899; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+                            iconSize: [12, 12],
+                            iconAnchor: [6, 6]
+                        });
+                        const m = window.L.marker(pt, { icon: dotIcon }).addTo(map);
+                        drawingLayerRef.current.push(m);
                     });
-                    
-                    previewMarkerRef.current = window.L.marker([selectedCoords.lat, selectedCoords.lng], { icon: customIcon, zIndexOffset: 1000 })
-                        .addTo(map)
-                        .bindPopup("Vị trí đang chọn")
-                        .openPopup();
+
+                    if (points.length > 1) {
+                        if (type === 'polyline') {
+                            const line = window.L.polyline(points, { color: '#ec4899', dashArray: '5, 10', weight: 3 }).addTo(map);
+                            drawingLayerRef.current.push(line);
+                        } else if (type === 'polygon') {
+                            const poly = window.L.polygon(points, { color: '#ec4899', dashArray: '5, 10', weight: 3, fillOpacity: 0.2 }).addTo(map);
+                            drawingLayerRef.current.push(poly);
+                        }
+                    }
                 }
-            }, [selectedCoords]);
+            }, [drawingData]);
 
             // Cập nhật các Layers chính
             useEffect(() => {
@@ -264,28 +349,27 @@
             }, [markers, activeLayers]);
 
             const updateLayers = (map) => {
-                // Remove old layers
                 layersRef.current.forEach(layer => map.removeLayer(layer));
                 layersRef.current = [];
 
                 markers.forEach(feature => {
                 if (activeLayers.includes(feature.type) && feature.isVisible !== false) {
                     if (!feature.geometryType || feature.geometryType === 'point') {
-                    let color = 'blue';
-                    if (feature.type === 'C') color = 'red'; 
-                    if (feature.type === 'E') color = 'gold'; 
-                    
-                    const customIcon = window.L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div style="background-color:${color}; width:14px; height:14px; border-radius:50%; border:2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
-                        iconSize: [14, 14],
-                        iconAnchor: [7, 7]
-                    });
+                        let color = 'blue';
+                        if (feature.type === 'C') color = 'red'; 
+                        if (feature.type === 'E') color = 'gold'; 
+                        
+                        const customIcon = window.L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="background-color:${color}; width:14px; height:14px; border-radius:50%; border:2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
+                        });
 
-                    const m = window.L.marker([feature.lat, feature.lng], { icon: customIcon })
-                        .bindPopup(`<b>${feature.label}</b><br/>Loại: Điểm ${feature.type}`)
-                        .addTo(map);
-                    layersRef.current.push(m);
+                        const m = window.L.marker([feature.lat, feature.lng], { icon: customIcon })
+                            .bindPopup(`<b>${feature.label}</b><br/>Loại: Điểm ${feature.type}`)
+                            .addTo(map);
+                        layersRef.current.push(m);
                     } 
                     else if (feature.geometryType === 'polygon' && feature.coordinates) {
                         const p = window.L.polygon(feature.coordinates, {
@@ -313,7 +397,7 @@
         };
 
         // --- Component: Interactive Map Container ---
-        const InteractiveMap = ({ isAdmin, onMapClick, selectedCoords }) => {
+        const InteractiveMap = ({ isAdmin, onMapClick, drawingData }) => {
             const [activeLayers, setActiveLayers] = useState(['A', 'B', 'C', 'D', 'E']);
             const [parentMode, setParentMode] = useState(false);
             const [markers, setMarkers] = useState([]);
@@ -399,7 +483,7 @@
                             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-400 opacity-50 border border-green-600"></div> Vùng an toàn</div>
                             <div className="flex items-center gap-2"><div className="w-6 h-1 bg-gray-500 border-t border-dashed"></div> Tuyến đường HS</div>
                             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-600 border-2 border-white shadow"></div> Điểm đen/Ùn tắc</div>
-                            {isAdmin && <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-pink-500 border-2 border-white shadow animate-pulse"></div> Vị trí đang chọn</div>}
+                            {isAdmin && <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-pink-500 border-2 border-white shadow animate-pulse"></div> Đang vẽ/chọn</div>}
                         </div>
                     </div>
                     </div>
@@ -409,7 +493,7 @@
                     {loading ? (
                         <div className="absolute inset-0 flex items-center justify-center">Đang tải bản đồ...</div>
                     ) : (
-                        <LeafletMap markers={markers} activeLayers={activeLayers} onMapClick={onMapClick} selectedCoords={selectedCoords} />
+                        <LeafletMap markers={markers} activeLayers={activeLayers} onMapClick={onMapClick} drawingData={drawingData} />
                     )}
                     </div>
                 </div>
@@ -422,6 +506,7 @@
             const [activeTab, setActiveTab] = useState('news'); 
             const [title, setTitle] = useState('');
             const [content, setContent] = useState('');
+            const [backgroundImage, setBackgroundImage] = useState(''); // New: Ảnh nền
             const [category, setCategory] = useState('Tin tức');
             const [status, setStatus] = useState('');
             
@@ -456,7 +541,7 @@
 
             // --- HANDLERS ---
             const resetForm = () => {
-                setTitle(''); setContent(''); setCategory('Tin tức');
+                setTitle(''); setContent(''); setBackgroundImage(''); setCategory('Tin tức');
                 setLat(''); setLng(''); setCoordString('');
                 setIsVisible(true);
                 setEditingId(null);
@@ -473,21 +558,36 @@
                     setIsVisible(item.isVisible !== false);
                     if (item.geometryType === 'point' || !item.geometryType) {
                         setLat(item.lat); setLng(item.lng);
+                        setCoordString('');
                     } else {
                         const str = item.coordinates.map(pair => pair.join(',')).join('; ');
                         setCoordString(str);
+                        setLat(''); setLng('');
                     }
                 } else {
                     setContent(item.content);
+                    setBackgroundImage(item.backgroundImage || '');
                 }
             };
 
-            // Xử lý Click trên bản đồ (Callback từ InteractiveMap)
             const handleMapClick = (coords) => {
-                if (activeTab === 'map' && (!geometryType || geometryType === 'point')) {
-                    setLat(coords.lat.toFixed(6)); // Làm tròn 6 số thập phân cho gọn
-                    setLng(coords.lng.toFixed(6));
+                if (activeTab !== 'map') return;
+                const newLat = coords.lat.toFixed(6);
+                const newLng = coords.lng.toFixed(6);
+                if (geometryType === 'point') {
+                    setLat(newLat);
+                    setLng(newLng);
+                } else {
+                    const newPointStr = `${newLat},${newLng}`;
+                    setCoordString(prev => prev ? `${prev}; ${newPointStr}` : newPointStr);
                 }
+            };
+
+            const handleUndoPoint = () => {
+                if (!coordString) return;
+                const parts = coordString.split(';').map(s => s.trim());
+                parts.pop();
+                setCoordString(parts.join('; '));
             };
 
             const toggleMapItemVisibility = async (item) => {
@@ -533,7 +633,10 @@
                         }
                     } else {
                         data = {
-                            title, content, category,
+                            title, 
+                            content, // Bây giờ chứa HTML từ RichTextEditor
+                            backgroundImage, // Lưu link ảnh
+                            category,
                             createdAt: editingId ? undefined : serverTimestamp()
                         };
                     }
@@ -553,8 +656,21 @@
                 }
             };
 
-            // Helper để tạo object coords cho Map Preview
-            const currentEditingCoords = (lat && lng) ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null;
+            const drawingData = useMemo(() => {
+                if (activeTab !== 'map') return null;
+                if (geometryType === 'point') {
+                    return (lat && lng) ? { type: 'point', points: [[parseFloat(lat), parseFloat(lng)]] } : null;
+                } else {
+                    if (!coordString) return null;
+                    try {
+                        const points = coordString.split(';').map(pair => {
+                            const [la, lo] = pair.trim().split(',');
+                            return [parseFloat(la), parseFloat(lo)];
+                        }).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+                        return { type: geometryType, points };
+                    } catch(e) { return null; }
+                }
+            }, [activeTab, geometryType, lat, lng, coordString]);
 
             return (
                 <div className="bg-white p-6 rounded shadow-lg mt-4">
@@ -571,103 +687,55 @@
                 {/* --- MAP GIS FORM & LIST --- */}
                 {activeTab === 'map' && (
                     <div className="space-y-6">
-                        {/* HIỂN THỊ BẢN ĐỒ ĐỂ CHỌN ĐIỂM */}
                         <div className="bg-blue-50 p-2 rounded border border-blue-200">
                             <p className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2">
-                                <MousePointer2 className="w-4 h-4"/> Click trực tiếp lên bản đồ để lấy tọa độ
+                                <MousePointer2 className="w-4 h-4"/> Click trực tiếp lên bản đồ để {geometryType === 'point' ? 'chọn điểm' : 'vẽ đường/vùng'}
                             </p>
                             <InteractiveMap 
                                 isAdmin={true} 
                                 onMapClick={handleMapClick} 
-                                selectedCoords={currentEditingCoords} 
+                                drawingData={drawingData} 
                             />
                         </div>
 
                         <form onSubmit={handleSubmit} className="bg-yellow-50 p-4 rounded border border-yellow-200 space-y-4">
+                            {/* ... (Map form content remains same) ... */}
                             <h3 className="font-bold text-yellow-800 border-b border-yellow-200 pb-2">
                                 {editingId ? `Đang sửa điểm bản đồ` : 'Thêm Lớp dữ liệu mới (Layer)'}
                             </h3>
-                            <div>
-                                <label className="block font-bold mb-1 text-sm">Tên hiển thị (Label)</label>
-                                <input required value={title} onChange={e => setTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Ví dụ: Chốt trực Cổng A, Đường Nguyễn Du..." />
-                            </div>
-
+                            <div><label className="block font-bold mb-1 text-sm">Tên hiển thị</label><input required value={title} onChange={e => setTitle(e.target.value)} className="w-full border p-2 rounded" /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block font-bold mb-1 text-sm">Loại hình học</label>
-                                    <select value={geometryType} onChange={e => setGeometryType(e.target.value)} className="w-full border p-2 rounded">
-                                        <option value="point">Điểm (Point)</option>
-                                        <option value="polyline">Đường (Line)</option>
-                                        <option value="polygon">Vùng (Polygon)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block font-bold mb-1 text-sm">Thuộc lớp</label>
-                                    <select value={markerType} onChange={e => setMarkerType(e.target.value)} className="w-full border p-2 rounded">
-                                        <option value="A">Trường học (Layer A)</option>
-                                        <option value="B">Tuyến đường (Layer B)</option>
-                                        <option value="C">Điểm nguy cơ (Layer C)</option>
-                                        <option value="D">Vùng an toàn (Layer D)</option>
-                                        <option value="E">Chốt trực (Layer E)</option>
-                                    </select>
-                                </div>
+                                <div><label className="block font-bold mb-1 text-sm">Loại hình học</label><select value={geometryType} onChange={e => {setGeometryType(e.target.value); setCoordString(''); setLat(''); setLng('');}} className="w-full border p-2 rounded"><option value="point">Điểm</option><option value="polyline">Đường</option><option value="polygon">Vùng</option></select></div>
+                                <div><label className="block font-bold mb-1 text-sm">Thuộc lớp</label><select value={markerType} onChange={e => setMarkerType(e.target.value)} className="w-full border p-2 rounded"><option value="A">Trường học</option><option value="B">Tuyến đường</option><option value="C">Điểm nguy cơ</option><option value="D">Vùng an toàn</option><option value="E">Chốt trực</option></select></div>
                             </div>
-
                             {geometryType === 'point' ? (
                                 <div className="grid grid-cols-2 gap-4 bg-white p-3 rounded border">
-                                    <div className="col-span-2 text-xs text-gray-500 italic mb-1">
-                                        * Bạn có thể nhập tay hoặc Click trên bản đồ ở trên để tự điền.
-                                    </div>
-                                    <div><label className="block font-bold mb-1 text-sm">Vĩ độ (Lat)</label><input required type="number" step="any" value={lat} onChange={e => setLat(e.target.value)} className="w-full border p-2 rounded bg-gray-50" placeholder="18.3..." /></div>
-                                    <div><label className="block font-bold mb-1 text-sm">Kinh độ (Lng)</label><input required type="number" step="any" value={lng} onChange={e => setLng(e.target.value)} className="w-full border p-2 rounded bg-gray-50" placeholder="105.9..." /></div>
+                                    <div><label className="block font-bold mb-1 text-sm">Vĩ độ</label><input required type="number" step="any" value={lat} onChange={e => setLat(e.target.value)} className="w-full border p-2 rounded bg-gray-50" /></div>
+                                    <div><label className="block font-bold mb-1 text-sm">Kinh độ</label><input required type="number" step="any" value={lng} onChange={e => setLng(e.target.value)} className="w-full border p-2 rounded bg-gray-50" /></div>
                                 </div>
                             ) : (
                                 <div>
-                                    <label className="block font-bold mb-1 text-sm">Danh sách tọa độ (Lat,Lng)</label>
-                                    <textarea required value={coordString} onChange={e => setCoordString(e.target.value)} className="w-full border p-2 rounded h-20 font-mono text-xs" placeholder="18.1,105.1; 18.2,105.2; 18.3,105.3" />
-                                    <p className="text-xs text-gray-500 mt-1">Phân cách bằng dấu chấm phẩy (;). VD: `18.1,105.1; 18.2,105.2`</p>
+                                    <div className="flex justify-between items-center mb-1"><label className="block font-bold text-sm">Danh sách tọa độ</label>{coordString && <button type="button" onClick={handleUndoPoint} className="text-xs flex items-center gap-1 bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"><Undo2 className="w-3 h-3"/> Xóa điểm cuối</button>}</div>
+                                    <textarea required value={coordString} onChange={e => setCoordString(e.target.value)} className="w-full border p-2 rounded h-20 font-mono text-xs" />
                                 </div>
                             )}
-
-                            <div className="flex items-center gap-2 mb-2">
-                                <input type="checkbox" id="visibilityCheck" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} className="w-4 h-4 text-blue-600" />
-                                <label htmlFor="visibilityCheck" className="text-sm font-bold text-gray-700 select-none">Hiển thị trên bản đồ</label>
-                            </div>
-
+                            <div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} className="w-4 h-4 text-blue-600" /><label className="text-sm font-bold text-gray-700">Hiển thị trên bản đồ</label></div>
                             <div className="flex gap-2">
-                                <button type="submit" className={`${editingId ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'} text-white px-6 py-2 rounded flex items-center gap-2 font-bold w-full justify-center`}>
-                                    {editingId ? <Save className="w-4 h-4"/> : <Plus className="w-4 h-4"/>} 
-                                    {editingId ? 'Cập nhật Bản đồ' : 'Thêm vào Bản đồ'}
-                                </button>
-                                {editingId && (
-                                    <button type="button" onClick={resetForm} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 flex items-center gap-2">Hủy</button>
-                                )}
+                                <button type="submit" className={`${editingId ? 'bg-orange-500' : 'bg-blue-600'} text-white px-6 py-2 rounded flex items-center gap-2 font-bold w-full justify-center`}>{editingId ? 'Cập nhật' : 'Thêm vào Bản đồ'}</button>
+                                {editingId && <button type="button" onClick={resetForm} className="bg-gray-500 text-white px-4 py-2 rounded">Hủy</button>}
                             </div>
                         </form>
 
-                        {/* List of Map Items */}
                         <div className="bg-white border rounded-lg overflow-hidden">
-                            <div className="bg-gray-100 p-3 font-bold text-gray-700 flex justify-between">
-                                <span>Danh sách đối tượng bản đồ</span>
-                                <span className="text-xs font-normal bg-gray-200 px-2 py-1 rounded">{mapItems.length} mục</span>
-                            </div>
+                            <div className="bg-gray-100 p-3 font-bold text-gray-700 flex justify-between"><span>Danh sách đối tượng</span><span className="text-xs bg-gray-200 px-2 py-1 rounded">{mapItems.length} mục</span></div>
                             <div className="max-h-60 overflow-y-auto">
                                 {mapItems.map(item => (
                                     <div key={item.id} className="p-3 border-b flex justify-between items-center hover:bg-gray-50 text-sm group">
                                         <div className="flex items-center gap-3">
-                                            <button onClick={() => toggleMapItemVisibility(item)} className={`p-1 rounded-full transition ${item.isVisible !== false ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-400'}`}>
-                                                {item.isVisible !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                            </button>
-                                            <div>
-                                                <span className={`font-bold block ${item.isVisible === false ? 'opacity-50 line-through' : ''}`}>{item.label}</span>
-                                                <span className="text-xs text-gray-500 uppercase mr-2">{item.geometryType || 'point'}</span>
-                                                <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">Layer {item.type}</span>
-                                            </div>
+                                            <button onClick={() => toggleMapItemVisibility(item)} className={`p-1 rounded-full ${item.isVisible !== false ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-400'}`}>{item.isVisible !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}</button>
+                                            <div><span className={`font-bold block ${item.isVisible === false ? 'opacity-50 line-through' : ''}`}>{item.label}</span><span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">Layer {item.type}</span></div>
                                         </div>
-                                        <div className="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleEdit(item)} className="text-blue-600 hover:bg-blue-100 p-2 rounded"><Edit className="w-4 h-4" /></button>
-                                            <button onClick={() => handleDelete('map_markers', item.id)} className="text-red-500 hover:bg-red-100 p-2 rounded"><Trash2 className="w-4 h-4" /></button>
-                                        </div>
+                                        <div className="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100"><button onClick={() => handleEdit(item)} className="text-blue-600"><Edit className="w-4 h-4" /></button><button onClick={() => handleDelete('map_markers', item.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></button></div>
                                     </div>
                                 ))}
                             </div>
@@ -675,19 +743,26 @@
                     </div>
                 )}
 
-                {/* --- NEWS & DOCS SECTION (Giữ nguyên nhưng ẩn khi không chọn tab) --- */}
+                {/* --- NEWS FORM --- */}
                 {activeTab === 'news' && (
                     <div className="space-y-6">
                         <form onSubmit={handleSubmit} className="bg-blue-50 p-4 rounded border border-blue-200 space-y-4">
                             <h3 className="font-bold text-blue-800 border-b border-blue-200 pb-2">{editingId ? 'Sửa tin tức' : 'Thêm tin tức mới'}</h3>
                             <div><label className="block font-bold mb-1">Tiêu đề</label><input required value={title} onChange={e => setTitle(e.target.value)} className="w-full border p-2 rounded" /></div>
+                            <div><label className="block font-bold mb-1">Link Ảnh nền (URL)</label><input value={backgroundImage} onChange={e => setBackgroundImage(e.target.value)} className="w-full border p-2 rounded" placeholder="https://example.com/image.jpg" /></div>
                             <div>
                                 <label className="block font-bold mb-1">Chuyên mục</label>
                                 <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border p-2 rounded">
                                 <option>Tin tức</option><option>Gương điển hình</option><option>Kỹ năng</option><option>Cổng trường</option>
+                                <option>Góc học sinh</option>
+                                <option>Góc phụ huynh</option>
                                 </select>
                             </div>
-                            <div><label className="block font-bold mb-1">Nội dung</label><textarea required value={content} onChange={e => setContent(e.target.value)} className="w-full border p-2 rounded h-32"></textarea></div>
+                            <div>
+                                <label className="block font-bold mb-1">Nội dung (Rich Text)</label>
+                                {/* Thay thế textarea bằng RichTextEditor */}
+                                <SimpleRichTextEditor value={content} onChange={setContent} />
+                            </div>
                             <div className="flex gap-2">
                                 <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded flex items-center gap-2 font-bold"><Save className="w-4 h-4" /> {editingId ? 'Cập nhật' : 'Đăng bài'}</button>
                                 {editingId && <button type="button" onClick={resetForm} className="bg-gray-500 text-white px-4 py-2 rounded">Hủy</button>}
@@ -698,7 +773,10 @@
                             <div className="max-h-80 overflow-y-auto">
                                 {adminPosts.map(post => (
                                     <div key={post.id} className="p-3 border-b flex justify-between hover:bg-gray-50 group">
-                                        <div><span className="font-bold block">{post.title}</span><span className="text-xs bg-gray-200 px-2 rounded">{post.category}</span></div>
+                                        <div className="flex gap-3">
+                                            {post.backgroundImage && <img src={post.backgroundImage} className="w-12 h-12 object-cover rounded" alt="thumb" />}
+                                            <div><span className="font-bold block">{post.title}</span><span className="text-xs bg-gray-200 px-2 rounded">{post.category}</span></div>
+                                        </div>
                                         <div className="flex gap-2 opacity-0 group-hover:opacity-100"><button onClick={() => handleEdit(post)} className="text-blue-600"><Edit className="w-4 h-4"/></button><button onClick={() => handleDelete('news', post.id)} className="text-red-500"><Trash2 className="w-4 h-4"/></button></div>
                                     </div>
                                 ))}
@@ -707,17 +785,13 @@
                     </div>
                 )}
 
+                {/* --- DOCS FORM (Giữ nguyên nhưng ẩn khi không chọn tab) --- */}
                 {activeTab === 'docs' && (
                     <div className="space-y-6">
                         <form onSubmit={handleSubmit} className="bg-blue-50 p-4 rounded border border-blue-200 space-y-4">
                             <h3 className="font-bold text-blue-800 border-b border-blue-200 pb-2">{editingId ? 'Sửa văn bản' : 'Thêm văn bản mới'}</h3>
                             <div><label className="block font-bold mb-1">Tên văn bản</label><input required value={title} onChange={e => setTitle(e.target.value)} className="w-full border p-2 rounded" /></div>
-                            <div>
-                                <label className="block font-bold mb-1">Loại</label>
-                                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border p-2 rounded">
-                                <option>Văn bản nội bộ</option><option>Văn bản pháp luật</option><option>Mẫu cam kết</option>
-                                </select>
-                            </div>
+                            <div><label className="block font-bold mb-1">Loại</label><select value={category} onChange={e => setCategory(e.target.value)} className="w-full border p-2 rounded"><option>Văn bản nội bộ</option><option>Văn bản pháp luật</option><option>Mẫu cam kết</option></select></div>
                             <div><label className="block font-bold mb-1">Link tải</label><input required value={content} onChange={e => setContent(e.target.value)} className="w-full border p-2 rounded" /></div>
                             <div className="flex gap-2">
                                 <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded flex items-center gap-2 font-bold"><Save className="w-4 h-4" /> {editingId ? 'Cập nhật' : 'Lưu'}</button>
@@ -743,61 +817,11 @@
             );
         };
 
-        // ... (Phần còn lại của code Login, NewsList, App giữ nguyên như cũ) ...
-        const Login = ({ onLoginSuccess }) => {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState('');
-
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setError('');
-                try {
-                await signInWithEmailAndPassword(auth, email, password);
-                onLoginSuccess();
-                } catch (err) {
-                setError('Đăng nhập thất bại. Vui lòng kiểm tra Email/Mật khẩu trên Firebase.');
-                }
-            };
-
-            return (
-                <div className="max-w-md mx-auto mt-10 bg-white p-8 rounded shadow-lg border-t-4 border-blue-800">
-                <h2 className="text-2xl font-bold text-center mb-6 text-blue-800">Đăng nhập Quản trị</h2>
-                <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                    <label className="block text-gray-700 mb-1">Email</label>
-                    <input 
-                        type="email" 
-                        className="w-full border p-2 rounded" 
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)}
-                        placeholder="admin@namha.edu.vn"
-                    />
-                    </div>
-                    <div>
-                    <label className="block text-gray-700 mb-1">Mật khẩu</label>
-                    <input 
-                        type="password" 
-                        className="w-full border p-2 rounded" 
-                        value={password} 
-                        onChange={e => setPassword(e.target.value)}
-                    />
-                    </div>
-                    {error && <p className="text-red-500 text-sm">{error}</p>}
-                    <button className="w-full bg-blue-800 text-white py-2 rounded hover:bg-blue-900 font-bold">
-                    Đăng nhập
-                    </button>
-                </form>
-                <p className="text-xs text-gray-500 mt-4 text-center">
-                    Lưu ý: Cần tạo tài khoản trong Firebase Authentication trước khi đăng nhập.
-                </p>
-                </div>
-            );
-        };
-
+        // --- Component: News List with Detail View ---
         const NewsList = ({ categoryFilter }) => {
             const [posts, setPosts] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [selectedPost, setSelectedPost] = useState(null); // State cho bài viết đang xem
 
             useEffect(() => {
                 const q = query(collection(db, 'news'), orderBy('createdAt', 'desc'));
@@ -813,6 +837,43 @@
                 ? posts.filter(p => p.category === categoryFilter)
                 : posts;
 
+            // Render Giao diện Xem chi tiết
+            if (selectedPost) {
+                return (
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden animate-fade-in">
+                        <div className="p-4 border-b flex items-center gap-2 bg-gray-50">
+                            <button onClick={() => setSelectedPost(null)} className="flex items-center gap-1 text-blue-600 font-bold hover:bg-blue-100 px-3 py-1 rounded">
+                                <ArrowLeft className="w-4 h-4" /> Quay lại
+                            </button>
+                            <span className="text-gray-400">|</span>
+                            <span className="text-sm text-gray-600 uppercase font-bold">{selectedPost.category}</span>
+                        </div>
+                        
+                        {/* Ảnh bìa lớn */}
+                        {selectedPost.backgroundImage && (
+                            <div className="w-full h-64 bg-gray-200">
+                                <img src={selectedPost.backgroundImage} alt="Cover" className="w-full h-full object-cover" />
+                            </div>
+                        )}
+
+                        <div className="p-6 md:p-8">
+                            <h1 className="text-3xl font-bold text-gray-800 mb-4">{selectedPost.title}</h1>
+                            <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+                                <Calendar className="w-4 h-4" />
+                                {selectedPost.createdAt ? new Date(selectedPost.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : 'Vừa xong'}
+                            </div>
+                            
+                            {/* Nội dung bài viết (Render HTML) */}
+                            <div 
+                                className="rte-content text-gray-800 leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: selectedPost.content }}
+                            />
+                        </div>
+                    </div>
+                );
+            }
+
+            // Render Danh sách tin
             return (
                 <div className="space-y-6">
                 <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-3 text-gray-800 uppercase">
@@ -821,17 +882,27 @@
                 {loading ? <p>Đang tải...</p> : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredPosts.length > 0 ? filteredPosts.map(post => (
-                        <div key={post.id} className="bg-white rounded shadow hover:shadow-lg transition overflow-hidden flex flex-col">
-                        <div className="h-40 bg-gray-200 flex items-center justify-center text-gray-400">
-                            <Megaphone className="w-12 h-12" />
+                        <div key={post.id} className="bg-white rounded shadow hover:shadow-lg transition overflow-hidden flex flex-col h-full">
+                        <div className="h-48 bg-gray-200 flex items-center justify-center text-gray-400 relative">
+                            {post.backgroundImage ? (
+                                <img src={post.backgroundImage} alt={post.title} className="w-full h-full object-cover" />
+                            ) : (
+                                <Megaphone className="w-12 h-12" />
+                            )}
+                            <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded uppercase opacity-90">{post.category}</span>
                         </div>
-                        <div className="p-4 flex-1">
-                            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">{post.category}</span>
-                            <h3 className="font-bold text-lg mt-1 mb-2 line-clamp-2">{post.title}</h3>
-                            <p className="text-gray-600 text-sm line-clamp-3">{post.content}</p>
-                        </div>
-                        <div className="p-4 pt-0 mt-auto">
-                            <button className="text-blue-600 text-sm font-bold hover:underline">Xem chi tiết &rarr;</button>
+                        <div className="p-4 flex-1 flex flex-col">
+                            <h3 className="font-bold text-lg mb-2 line-clamp-2 hover:text-blue-700 cursor-pointer" onClick={() => setSelectedPost(post)}>{post.title}</h3>
+                            {/* Hiển thị đoạn trích ngắn gọn, loại bỏ thẻ HTML */}
+                            <p className="text-gray-600 text-sm line-clamp-3 mb-4 flex-1">
+                                {post.content ? post.content.replace(/<[^>]+>/g, '').substring(0, 120) + '...' : ''}
+                            </p>
+                            <button 
+                                onClick={() => setSelectedPost(post)}
+                                className="text-blue-600 text-sm font-bold hover:underline mt-auto self-start flex items-center gap-1"
+                            >
+                                Xem chi tiết &rarr;
+                            </button>
                         </div>
                         </div>
                     )) : (
@@ -843,9 +914,11 @@
             );
         };
 
+        // --- Main App Component ---
         function App() {
             const [currentPage, setCurrentPage] = useState('home');
             const [user, setUser] = useState(null);
+            const [skillCategory, setSkillCategory] = useState('Góc học sinh');
 
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -896,16 +969,16 @@
                 case 'skills': return (
                     <div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div className="bg-pink-50 p-6 rounded-lg border border-pink-200 text-center cursor-pointer hover:shadow-lg transition">
+                        <div onClick={() => setSkillCategory('Góc học sinh')} className={`bg-pink-50 p-6 rounded-lg border border-pink-200 text-center cursor-pointer hover:shadow-lg transition ${skillCategory === 'Góc học sinh' ? 'ring-2 ring-pink-500' : ''}`}>
                         <h3 className="text-xl font-bold text-pink-700 mb-2">Góc Học Sinh</h3>
                         <p>Video, Infographic kỹ năng đi bộ, đi xe đạp an toàn.</p>
                         </div>
-                        <div className="bg-indigo-50 p-6 rounded-lg border border-indigo-200 text-center cursor-pointer hover:shadow-lg transition">
+                        <div onClick={() => setSkillCategory('Góc phụ huynh')} className={`bg-indigo-50 p-6 rounded-lg border border-indigo-200 text-center cursor-pointer hover:shadow-lg transition ${skillCategory === 'Góc phụ huynh' ? 'ring-2 ring-indigo-500' : ''}`}>
                         <h3 className="text-xl font-bold text-indigo-700 mb-2">Góc Phụ Huynh</h3>
                         <p>Hướng dẫn đội mũ bảo hiểm, quy định đưa đón.</p>
                         </div>
                     </div>
-                    <NewsList categoryFilter="Kỹ năng" />
+                    <NewsList categoryFilter={skillCategory} />
                     </div>
                 );
                 case 'hero': return <NewsList categoryFilter="Gương điển hình" />;
